@@ -50,6 +50,8 @@ public class AuctionHudClient implements ClientModInitializer {
         });
 
         ClientReceiveMessageEvents.GAME.register(AuctionHudClient::onMessage);
+        // some servers send payment lines as normal chat instead of system messages
+        ClientReceiveMessageEvents.CHAT.register((message, signed, sender, params, ts) -> onMessage(message, false));
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
                 dispatcher.register(ClientCommandManager.literal("auctionhud")
@@ -73,22 +75,83 @@ public class AuctionHudClient implements ClientModInitializer {
                                                 }))))));
     }
 
-    private static void onMessage(Text message, boolean overlay) {
-        // strip any section-sign colour codes just in case
-        String raw = message.getString().replaceAll("\u00A7.", "");
+    private static final Pattern LOOKS_PAY =
+            Pattern.compile("\\b(paid|pay|sent|send|gave|give|received|got|transfer\\w*)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern OUTGOING =
+            Pattern.compile("^\\s*you\\s+(paid|sent|gave|send|pay)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AMOUNT_DOLLAR = Pattern.compile("\\$\\s?" + NUM);
+    private static final Pattern AMOUNT_PLAIN =
+            Pattern.compile("(?:you|paid|sent|gave|received|got)\\s+" + NUM, Pattern.CASE_INSENSITIVE);
+    private static final Pattern TOKEN = Pattern.compile("\\b\\w{3,16}\\b");
+    private static final java.util.Set<String> STOP = java.util.Set.of(
+            "you", "your", "paid", "pay", "sent", "send", "gave", "give", "has", "have", "from", "received",
+            "got", "the", "and", "for", "money", "transfer", "transferred", "just", "with", "payment", "balance");
 
-        if (AuctionState.debug && (raw.contains("$") || raw.toLowerCase().contains("paid"))) {
-            AuctionState.say(MinecraftClient.getInstance(), "[AuctionHud debug] saw: " + raw);
+    private static String lastRaw = "";
+    private static long lastRawTime = 0;
+
+    private static void onMessage(Text message, boolean overlay) {
+        String raw = message.getString().replaceAll("\u00A7.", "").trim();
+        if (raw.isEmpty()) return;
+
+        // GAME + CHAT can both fire for one line: ignore repeats within 1s
+        long now = System.currentTimeMillis();
+        if (raw.equals(lastRaw) && now - lastRawTime < 1000) return;
+        lastRaw = raw;
+        lastRawTime = now;
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        boolean looksPay = LOOKS_PAY.matcher(raw).find();
+        if (AuctionState.debug && (raw.contains("$") || looksPay)) {
+            AuctionState.say(mc, "[AuctionHud debug] saw: " + raw);
         }
+        if (!looksPay || OUTGOING.matcher(raw).find()) return;
+
+        String name = null;
+        long amount = 0;
 
         Matcher m = PAY.matcher(raw);
+        Matcher m2 = PAY2.matcher(raw);
         if (m.find()) {
-            AuctionState.placeBid(m.group(1), AuctionState.parseMoney(m.group(2)));
+            name = m.group(1);
+            amount = AuctionState.parseMoney(m.group(2));
+        } else if (m2.find()) {
+            name = m2.group(2);
+            amount = AuctionState.parseMoney(m2.group(1));
+        } else {
+            // generic fallback: needs an amount + "you"/"received" (so it's incoming)
+            String low = raw.toLowerCase();
+            if (!(low.contains("you") || low.contains("received") || low.contains("got "))) return;
+            Matcher a = AMOUNT_DOLLAR.matcher(raw);
+            String amt = null;
+            if (a.find()) amt = a.group(1);
+            else {
+                Matcher b = AMOUNT_PLAIN.matcher(raw);
+                if (b.find()) amt = b.group(1);
+            }
+            if (amt == null) return;
+            amount = AuctionState.parseMoney(amt);
+
+            String self = mc.player != null ? mc.player.getName().getString() : "";
+            String firstUnknown = null;
+            Matcher t = TOKEN.matcher(raw);
+            while (t.find()) {
+                String tok = t.group();
+                if (tok.equalsIgnoreCase(self) || STOP.contains(tok.toLowerCase())) continue;
+                if (tok.matches("\\d.*")) continue;
+                if (AuctionState.lookup(tok) != null) { name = tok; break; }   // a player who is online
+                if (firstUnknown == null) firstUnknown = tok;
+            }
+            if (name == null) name = firstUnknown;
+        }
+
+        if (name == null || amount <= 0) return;
+
+        if (!AuctionState.running) {
+            AuctionState.say(mc, "[AuctionHud] " + name + " paid " + AuctionState.formatMoney(amount)
+                    + " but no auction is running (press K, then Start Auction)");
             return;
         }
-        Matcher m2 = PAY2.matcher(raw);
-        if (m2.find()) {
-            AuctionState.placeBid(m2.group(2), AuctionState.parseMoney(m2.group(1)));
-        }
+        AuctionState.placeBid(name, amount);
     }
 }

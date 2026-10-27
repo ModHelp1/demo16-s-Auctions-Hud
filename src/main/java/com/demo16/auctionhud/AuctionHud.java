@@ -128,7 +128,7 @@ public final class AuctionHud {
         int sw = ctx.getScaledWindowWidth();
         int sh = ctx.getScaledWindowHeight();
 
-        String line = AuctionState.popupName + " Won the " + AuctionState.popupItem;
+        String line = AuctionState.popupName + " Won the " + AuctionState.popupItem + "!!!";
         String sub = "for " + AuctionState.formatMoney(AuctionState.popupBid);
 
         // text scale: as big as possible but always fits on screen
@@ -145,8 +145,9 @@ public final class AuctionHud {
         int by = sh / 3 - boxH / 2;
 
         ctx.fill(bx, by, bx + boxW, by + boxH, 0xF0120F00);
-        border(ctx, bx, by, boxW, boxH, BORDER);
-        border(ctx, bx + 2, by + 2, boxW - 4, boxH - 4, 0xFF8A7420);
+        boolean pulse = (now / 150) % 2 == 0;
+        border(ctx, bx, by, boxW, boxH, pulse ? BORDER : 0xFFFFFFFF);
+        border(ctx, bx + 2, by + 2, boxW - 4, boxH - 4, pulse ? 0xFFFFFFFF : BORDER);
 
         // --- head of the winner ---
         int hx = bx + pad, hy = by + pad;
