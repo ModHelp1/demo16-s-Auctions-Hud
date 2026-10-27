@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "demo16_auction_hud",
+  "version": "${version}",
+  "name": "demo16's Auction's Hud",
+  "description": "A yellow auction HUD overlay. Client-side only. No networking, no file access.",
+  "authors": ["demo16"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.demo16.auctionhud.AuctionHudClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
