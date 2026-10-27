@@ -1,7 +1,6 @@
 package com.demo16.auctionhud;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.client.network.PlayerListEntry;
@@ -111,7 +110,7 @@ public final class AuctionState {
     public static void sound(SoundEvent ev, float pitch) {
         if (!sounds) return;
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc != null) mc.getSoundManager().play(PositionedSoundInstance.master(ev, pitch));
+        if (mc != null && mc.player != null) mc.player.playSound(ev, 1.0f, pitch);
     }
 
     /** Sends a real chat message to the server. */
