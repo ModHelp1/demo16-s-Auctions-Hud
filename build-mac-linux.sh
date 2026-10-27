@@ -11,18 +11,18 @@ if [ "$V" -lt 21 ]; then
   echo "Java $V is too old. You need JDK 21+: https://adoptium.net"; exit 1
 fi
 
-if [ ! -x .gradle-dist/gradle-8.8/bin/gradle ]; then
-  echo "Downloading Gradle 8.8 (one time only)..."
+if [ ! -x .gradle-dist/gradle-9.2.1/bin/gradle ]; then
+  echo "Downloading Gradle 9.2.1 (one time only)..."
   mkdir -p .gradle-dist
-  curl -L -o gradle.zip https://services.gradle.org/distributions/gradle-8.8-bin.zip
+  curl -L -o gradle.zip https://services.gradle.org/distributions/gradle-9.2.1-bin.zip
   unzip -q -o gradle.zip -d .gradle-dist
   rm gradle.zip
 fi
 
 echo "Building... this takes a few minutes the first time."
-.gradle-dist/gradle-8.8/bin/gradle build --no-daemon
+.gradle-dist/gradle-9.2.1/bin/gradle build --no-daemon
 
 mkdir -p MOD-JAR
-cp build/libs/demo16s-auctions-hud-1.0.0.jar MOD-JAR/
+cp build/libs/demo16s-auctions-hud-1.0.1.jar MOD-JAR/
 echo
-echo "DONE! Your mod: MOD-JAR/demo16s-auctions-hud-1.0.0.jar"
+echo "DONE! Your mod: MOD-JAR/demo16s-auctions-hud-1.0.1.jar"

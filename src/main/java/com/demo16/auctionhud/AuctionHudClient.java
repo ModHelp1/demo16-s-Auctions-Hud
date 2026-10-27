@@ -7,10 +7,11 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.regex.Matcher;
@@ -20,14 +21,21 @@ public class AuctionHudClient implements ClientModInitializer {
     // Matches chat lines like: "Steve paid you $1,500" or "Steve has sent you $2.5k"
     private static final Pattern PAY = Pattern.compile("(\\w{1,16}) (?:has )?(?:paid|sent) you \\$?([\\d,.]+[kKmMbB]?)");
 
+    private static final KeyBinding.Category CATEGORY =
+            KeyBinding.Category.create(Identifier.of("demo16_auction_hud", "main"));
+
     private static KeyBinding openKey;
 
     @Override
     public void onInitializeClient() {
         openKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.demo16_auction_hud.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, "category.demo16_auction_hud"));
+                "key.demo16_auction_hud.open", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_K, CATEGORY));
 
-        HudRenderCallback.EVENT.register(AuctionHud::render);
+        // Draw the HUD just before the chat layer
+        HudElementRegistry.attachElementBefore(
+                VanillaHudElements.CHAT,
+                Identifier.of("demo16_auction_hud", "auction_hud"),
+                AuctionHud::render);
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             while (openKey.wasPressed()) mc.setScreen(new SetupScreen());

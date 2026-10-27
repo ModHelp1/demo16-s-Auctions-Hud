@@ -20,9 +20,9 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist ".gradle-dist\gradle-8.8\bin\gradle.bat" (
-  echo Downloading Gradle 8.8 ^(one time only^)...
-  powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest 'https://services.gradle.org/distributions/gradle-8.8-bin.zip' -OutFile 'gradle.zip'; Expand-Archive 'gradle.zip' -DestinationPath '.gradle-dist' -Force; Remove-Item 'gradle.zip'"
+if not exist ".gradle-dist\gradle-9.2.1\bin\gradle.bat" (
+  echo Downloading Gradle 9.2.1 ^(one time only^)...
+  powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest 'https://services.gradle.org/distributions/gradle-9.2.1-bin.zip' -OutFile 'gradle.zip'; Expand-Archive 'gradle.zip' -DestinationPath '.gradle-dist' -Force; Remove-Item 'gradle.zip'"
   if errorlevel 1 (
     echo Download failed. Check your internet connection and try again.
     pause
@@ -31,7 +31,7 @@ if not exist ".gradle-dist\gradle-8.8\bin\gradle.bat" (
 )
 
 echo Building... this takes a few minutes the first time.
-call ".gradle-dist\gradle-8.8\bin\gradle.bat" build --no-daemon
+call ".gradle-dist\gradle-9.2.1\bin\gradle.bat" build --no-daemon
 if errorlevel 1 (
   echo.
   echo BUILD FAILED. Copy the error above and send it to Claude.
@@ -40,10 +40,10 @@ if errorlevel 1 (
 )
 
 if not exist "MOD-JAR" mkdir "MOD-JAR"
-copy /Y "build\libs\demo16s-auctions-hud-1.0.0.jar" "MOD-JAR\" >nul
+copy /Y "build\libs\demo16s-auctions-hud-1.0.1.jar" "MOD-JAR\" >nul
 
 echo.
 echo DONE! Your mod is in the MOD-JAR folder:
-echo   MOD-JAR\demo16s-auctions-hud-1.0.0.jar
+echo   MOD-JAR\demo16s-auctions-hud-1.0.1.jar
 start "" "MOD-JAR"
 pause

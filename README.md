@@ -1,4 +1,4 @@
-# demo16's Auction's Hud (Fabric, Minecraft 1.21.1)
+# demo16's Auction's Hud (Fabric, Minecraft 1.21.11)
 
 Yellow auction HUD overlay. Client-side only.
 
