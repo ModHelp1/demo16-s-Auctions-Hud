@@ -20,14 +20,17 @@ public final class AuctionState {
     public static int hudX = 10;
     public static int hudY = 10;
     public static boolean showSession = true;
-    public static int anchorH = 0;          // 0 left, 1 center, 2 right
-    public static int anchorV = 0;          // 0 top, 1 middle, 2 bottom
+    public static int delaySec = 0;         // stream delay: bids still count this long AFTER the timer hits 0
     public static boolean antiSnipe = false; // bid in last N sec -> timer goes back up to N sec
     public static int snipeSec = 5;
     public static boolean sounds = true;
+    public static boolean winEffect = true;  // fireworks when someone wins
+    public static int blastsPlayed = 0;
     public static boolean announce = false;  // say bids / winner in public chat
     public static long lastBidTime = 0;
     public static long lastAnnounce = 0;
+    public static String lastPayKey = "";
+    public static long lastPayTime = 0;
 
     // ---- live state ----
     public static boolean visible = false;
@@ -77,6 +80,45 @@ public final class AuctionState {
         topBid = 0;
         topEntry = null;
         popupUntil = 0;
+        endTime = 0;
+    }
+
+    /** Shows the winner popup + fireworks right now (for testing / setting things up). */
+    public static void testWin() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        String who = mc.player != null ? mc.player.getName().getString() : "Steve";
+        popupName = who;
+        popupBid = 5_000_000L;
+        popupItem = (quantity > 1 ? quantity + "x " : "") + stack().getName().getString();
+        popupEntry = lookup(who);
+        popupUntil = System.currentTimeMillis() + POPUP_MS;
+        blastsPlayed = 0;
+    }
+
+    /** When the auction really closes = timer end + stream delay. */
+    public static long closeTime() {
+        return endTime + delaySec * 1000L;
+    }
+
+    /** Any incoming payment. Counts as a bid during an auction, otherwise goes straight to session money. */
+    public static void onPayment(String name, long amount) {
+        long now = System.currentTimeMillis();
+        String key = name.toLowerCase() + "|" + amount;
+        // DonutSMP shows the same payment in chat AND the action bar: only count it once
+        if (key.equals(lastPayKey) && now - lastPayTime < 2000) return;
+        lastPayKey = key;
+        lastPayTime = now;
+
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (running) {
+            placeBid(name, amount);
+        } else {
+            sessionMoney += amount;
+            if (mc.player != null) {
+                mc.player.sendMessage(Text.literal("+" + formatMoney(amount) + " from " + name
+                        + "  (session " + formatMoney(sessionMoney) + ")"), true);
+            }
+        }
     }
 
     public static void placeBid(String name, long amount) {
@@ -120,7 +162,7 @@ public final class AuctionState {
 
     /** Call once per client tick. */
     public static void tick() {
-        if (running && System.currentTimeMillis() >= endTime) {
+        if (running && System.currentTimeMillis() >= closeTime()) {
             running = false;
             finished = true;
             MinecraftClient mc = MinecraftClient.getInstance();
@@ -133,9 +175,20 @@ public final class AuctionState {
                 PlayerListEntry fresh = lookup(topBidder);
                 popupEntry = fresh != null ? fresh : topEntry;
                 popupUntil = System.currentTimeMillis() + POPUP_MS;
+                blastsPlayed = 0;
                 say(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid));
                 sound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0f);
                 if (announce) chat(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid) + "!");
+            }
+        }
+
+        // firework blast sounds, one per burst, timed with the visuals
+        long nowMs = System.currentTimeMillis();
+        if (winEffect && popupName != null && nowMs < popupUntil) {
+            long el = nowMs - (popupUntil - POPUP_MS);
+            while (blastsPlayed < Fireworks.BURSTS && el >= (long) (Fireworks.explodeTime(blastsPlayed) * 1000)) {
+                sound(SoundEvents.ENTITY_FIREWORK_ROCKET_BLAST, 0.9f + 0.1f * (blastsPlayed % 3));
+                blastsPlayed++;
             }
         }
     }

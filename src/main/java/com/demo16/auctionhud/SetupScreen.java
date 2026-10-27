@@ -7,10 +7,7 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 public class SetupScreen extends Screen {
-    private static final String[] H_NAMES = {"Left", "Center", "Right"};
-    private static final String[] V_NAMES = {"Top", "Middle", "Bottom"};
-
-    private TextFieldWidget worth, minBid, quantity, timer, posX, posY;
+    private TextFieldWidget worth, minBid, quantity, timer, delay, posX, posY;
     private int top;
 
     public SetupScreen() {
@@ -43,18 +40,19 @@ public class SetupScreen extends Screen {
         minBid   = field(right, top + 50,  150, String.valueOf(AuctionState.minBid));
         quantity = field(left,  top + 88,  150, String.valueOf(AuctionState.quantity));
         timer    = field(right, top + 88,  150, String.valueOf(AuctionState.timerSec));
-        posX     = field(left,  top + 126, 150, String.valueOf(AuctionState.hudX));
-        posY     = field(right, top + 126, 150, String.valueOf(AuctionState.hudY));
+        delay    = field(left,  top + 126, 150, String.valueOf(AuctionState.delaySec));
+        posX     = field(right,      top + 126, 72, String.valueOf(AuctionState.hudX));
+        posY     = field(right + 78, top + 126, 72, String.valueOf(AuctionState.hudY));
 
-        // ---- HUD position ----
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("HUD side: " + H_NAMES[AuctionState.anchorH]), b -> {
-            AuctionState.anchorH = (AuctionState.anchorH + 1) % 3;
-            b.setMessage(Text.literal("HUD side: " + H_NAMES[AuctionState.anchorH]));
+        // ---- move HUD / preview ----
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Move HUD (drag it)"), b -> {
+            apply();
+            this.client.setScreen(new MoveScreen(this));
         }).dimensions(left, top + 152, 150, 20).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("HUD height: " + V_NAMES[AuctionState.anchorV]), b -> {
-            AuctionState.anchorV = (AuctionState.anchorV + 1) % 3;
-            b.setMessage(Text.literal("HUD height: " + V_NAMES[AuctionState.anchorV]));
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Preview HUD (show/hide)"), b -> {
+            apply();
+            AuctionState.visible = !AuctionState.visible;
         }).dimensions(right, top + 152, 150, 20).build());
 
         // ---- start / stop ----
@@ -87,14 +85,13 @@ public class SetupScreen extends Screen {
             b.setMessage(Text.literal("Session money: " + onOff(AuctionState.showSession)));
         }).dimensions(right, top + 226, 150, 20).build());
 
-        // ---- preview / clear ----
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Preview HUD (show/hide)"), b -> {
-            apply();
-            AuctionState.visible = !AuctionState.visible;
-        }).dimensions(left, top + 250, 150, 20).build());
-
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Clear HUD & Bids"), b -> AuctionState.clear())
-                .dimensions(right, top + 250, 150, 20).build());
+                .dimensions(left, top + 250, 150, 20).build());
+
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Win fireworks: " + onOff(AuctionState.winEffect)), b -> {
+            AuctionState.winEffect = !AuctionState.winEffect;
+            b.setMessage(Text.literal("Win fireworks: " + onOff(AuctionState.winEffect)));
+        }).dimensions(right, top + 250, 150, 20).build());
     }
 
     private void apply() {
@@ -103,6 +100,7 @@ public class SetupScreen extends Screen {
         AuctionState.minBid = AuctionState.parseMoney(minBid.getText());
         AuctionState.quantity = (int) Math.max(1, AuctionState.parseMoney(quantity.getText()));
         AuctionState.timerSec = (int) Math.max(1, AuctionState.parseMoney(timer.getText()));
+        AuctionState.delaySec = (int) Math.max(0, AuctionState.parseMoney(delay.getText()));
         AuctionState.hudX = (int) AuctionState.parseMoney(posX.getText());
         AuctionState.hudY = (int) AuctionState.parseMoney(posY.getText());
     }
@@ -113,13 +111,14 @@ public class SetupScreen extends Screen {
         int left = this.width / 2 - 155;
         int right = left + 160;
         ctx.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, top - 14, 0xFFFFD21F);
-        ctx.drawText(this.textRenderer, "Item (click to choose)",  left,  top,       0xFFFFE066, false);
-        ctx.drawText(this.textRenderer, "Worth (10k, 2.5m)",       left,  top + 38,  0xFFFFE066, false);
-        ctx.drawText(this.textRenderer, "Min Bid (0 = none)",      right, top + 38,  0xFFFFE066, false);
-        ctx.drawText(this.textRenderer, "Quantity",                left,  top + 76,  0xFFFFE066, false);
-        ctx.drawText(this.textRenderer, "Timer (seconds, e.g. 60)", right, top + 76, 0xFFFFE066, false);
-        ctx.drawText(this.textRenderer, "HUD offset X",            left,  top + 114, 0xFFFFE066, false);
-        ctx.drawText(this.textRenderer, "HUD offset Y",            right, top + 114, 0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "Item (click to choose)",       left,  top,       0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "Worth (10k, 2.5m)",            left,  top + 38,  0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "Min Bid (0 = none)",           right, top + 38,  0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "Quantity",                     left,  top + 76,  0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "Timer (seconds, e.g. 60)",     right, top + 76,  0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "Stream delay (sec, 0 = off)",  left,  top + 114, 0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "HUD X",                        right,      top + 114, 0xFFFFE066, false);
+        ctx.drawText(this.textRenderer, "HUD Y",                        right + 78, top + 114, 0xFFFFE066, false);
         // small icon of the chosen item inside the dropdown button
         ctx.drawItem(AuctionState.stack(), left + 4, top + 14);
     }

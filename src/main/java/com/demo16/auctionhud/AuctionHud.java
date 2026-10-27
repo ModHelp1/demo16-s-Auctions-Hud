@@ -14,6 +14,7 @@ public final class AuctionHud {
     private static final int TEXT_DIM = 0xFFB89B2A;
     private static final int WHITE = 0xFFFFF4C2;
     private static final int RED = 0xFFFF5555;
+    private static final int ORANGE = 0xFFFFAA00;
     private static final int BAR_BG = 0xFF3A3000;
     private static final int BOX_BG = 0xFF1E1900;
     public static final int W = 180;
@@ -25,40 +26,47 @@ public final class AuctionHud {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.options.hudHidden) return;
         TextRenderer font = mc.textRenderer;
-        renderPanel(ctx, font);
+
+        // the "move HUD" screen draws its own copy
+        if (!(mc.currentScreen instanceof MoveScreen)) {
+            int x = clampX(AuctionState.hudX, ctx.getScaledWindowWidth());
+            int y = clampY(AuctionState.hudY, ctx.getScaledWindowHeight());
+            drawAt(ctx, font, x, y, AuctionState.visible);
+        }
         renderWinnerPopup(ctx, font);
     }
 
-    private static int panelX(int sw) {
-        int o = AuctionState.hudX;
-        return switch (AuctionState.anchorH) {
-            case 1 -> (sw - W) / 2 + o;
-            case 2 -> sw - W - o;
-            default -> o;
-        };
-    }
+    public static int clampX(int x, int sw) { return Math.max(0, Math.min(x, Math.max(0, sw - W))); }
+    public static int clampY(int y, int sh) { return Math.max(0, Math.min(y, Math.max(0, sh - H))); }
 
-    private static int panelY(int sh) {
-        int o = AuctionState.hudY;
-        return switch (AuctionState.anchorV) {
-            case 1 -> (sh - H) / 2 + o;
-            case 2 -> sh - H - o;
-            default -> o;
-        };
+    /** Draws the panel (if showPanel) and the session pill (if enabled) with the HUD's top-left at x,y. */
+    public static void drawAt(DrawContext ctx, TextRenderer font, int x, int y, boolean showPanel) {
+        if (showPanel) drawPanel(ctx, font, x, y);
+        if (AuctionState.showSession) {
+            int sh = ctx.getScaledWindowHeight();
+            int py;
+            if (!showPanel) py = y;                                   // alone: sits where the HUD would be
+            else py = (y + H + 3 + 16 > sh) ? y - 19 : y + H + 3;     // under the panel (or above if no room)
+            drawSessionPill(ctx, font, x, py);
+        }
     }
 
     private static String fmtTime(long sec) {
         return sec >= 60 ? (sec / 60) + ":" + String.format("%02d", sec % 60) : sec + "s";
     }
 
+    private static void drawSessionPill(DrawContext ctx, TextRenderer font, int x, int y) {
+        String s = "SESSION " + AuctionState.formatMoney(AuctionState.sessionMoney);
+        int sw = font.getWidth(s) + 12;
+        ctx.fill(x, y, x + sw, y + 16, BG);
+        border(ctx, x, y, sw, 16, BORDER);
+        ctx.drawText(font, s, x + 6, y + 4, TEXT, true);
+    }
+
     // =====================================================================
     //  SMALL MAIN PANEL
     // =====================================================================
-    private static void renderPanel(DrawContext ctx, TextRenderer font) {
-        if (!AuctionState.visible) return;
-
-        int x = panelX(ctx.getScaledWindowWidth());
-        int y = panelY(ctx.getScaledWindowHeight());
+    private static void drawPanel(DrawContext ctx, TextRenderer font, int x, int y) {
         long now = System.currentTimeMillis();
 
         ctx.fill(x, y, x + W, y + H, BG);
@@ -81,12 +89,17 @@ public final class AuctionHud {
         // ---- TIMER ----
         long msLeft = Math.max(0, AuctionState.endTime - now);
         long secLeft = (msLeft + 999) / 1000;
+        boolean inDelay = AuctionState.running && now >= AuctionState.endTime;
         String status;
         int statusColor = TEXT_DIM;
         if (AuctionState.finished) {
             status = AuctionState.topBidder != null ? "SOLD to " + AuctionState.topBidder : "ended - no bids";
         } else if (!AuctionState.running) {
-            status = AuctionState.visible && AuctionState.endTime == 0 ? "ready - press Start" : "stopped";
+            status = AuctionState.endTime == 0 ? "ready - press Start" : "stopped";
+        } else if (inDelay) {
+            long delayLeft = (Math.max(0, AuctionState.closeTime() - now) + 999) / 1000;
+            status = "Final bids... " + delayLeft + "s";
+            statusColor = ORANGE;
         } else {
             status = "Ends in " + fmtTime(secLeft);
             if (secLeft <= 5) statusColor = ((now / 250) % 2 == 0) ? RED : 0xFFFF9999;
@@ -97,9 +110,16 @@ public final class AuctionHud {
         int barX = x + 4, barW = W - 8, barY = y + 26;
         ctx.fill(barX, barY, barX + barW, barY + 3, BAR_BG);
         if (AuctionState.running) {
-            long total = AuctionState.timerSec * 1000L;
-            int filled = (int) (barW * (msLeft / (double) Math.max(1, total)));
-            ctx.fill(barX, barY, barX + filled, barY + 3, secLeft <= 5 ? RED : BORDER);
+            if (inDelay) {
+                long total = Math.max(1, AuctionState.delaySec * 1000L);
+                long left = Math.max(0, AuctionState.closeTime() - now);
+                int filled = (int) (barW * (left / (double) total));
+                ctx.fill(barX, barY, barX + filled, barY + 3, ORANGE);
+            } else {
+                long total = AuctionState.timerSec * 1000L;
+                int filled = (int) (barW * (msLeft / (double) Math.max(1, total)));
+                ctx.fill(barX, barY, barX + filled, barY + 3, secLeft <= 5 ? RED : BORDER);
+            }
         }
 
         // ---- COMPACT LEADER ROW: head + IGN + amount ----
@@ -129,16 +149,6 @@ public final class AuctionHud {
         String min = "min " + AuctionState.formatMoney(AuctionState.minBid);
         ctx.drawText(font, worth, x + 6, y + 57, TEXT_DIM, false);
         ctx.drawText(font, min, x + W - 6 - font.getWidth(min), y + 57, TEXT_DIM, false);
-
-        // ---- session pill (below the panel, or above if the HUD is at the bottom) ----
-        if (AuctionState.showSession) {
-            String s = "SESSION " + AuctionState.formatMoney(AuctionState.sessionMoney);
-            int sw = font.getWidth(s) + 12;
-            int sy = AuctionState.anchorV == 2 ? y - 19 : y + H + 3;
-            ctx.fill(x, sy, x + sw, sy + 16, BG);
-            border(ctx, x, sy, sw, 16, BORDER);
-            ctx.drawText(font, s, x + 6, sy + 4, TEXT, true);
-        }
     }
 
     // =====================================================================
@@ -150,6 +160,10 @@ public final class AuctionHud {
 
         int sw = ctx.getScaledWindowWidth();
         int sh = ctx.getScaledWindowHeight();
+
+        if (AuctionState.winEffect) {
+            Fireworks.render(ctx, now - (AuctionState.popupUntil - AuctionState.POPUP_MS), sw, sh);
+        }
 
         String line = AuctionState.popupName + " Won the " + AuctionState.popupItem + "!!!";
         String sub = "for " + AuctionState.formatMoney(AuctionState.popupBid);

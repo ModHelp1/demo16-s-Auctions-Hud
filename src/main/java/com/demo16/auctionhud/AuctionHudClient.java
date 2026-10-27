@@ -58,6 +58,16 @@ public class AuctionHudClient implements ClientModInitializer {
                         .then(ClientCommandManager.literal("start").executes(c -> { AuctionState.start(); return 1; }))
                         .then(ClientCommandManager.literal("stop").executes(c -> { AuctionState.stop(); return 1; }))
                         .then(ClientCommandManager.literal("clear").executes(c -> { AuctionState.clear(); return 1; }))
+                        .then(ClientCommandManager.literal("session")
+                                .then(ClientCommandManager.literal("reset").executes(c -> {
+                                    AuctionState.sessionMoney = 0;
+                                    AuctionState.say(MinecraftClient.getInstance(), "[AuctionHud] session money reset");
+                                    return 1;
+                                })))
+                        .then(ClientCommandManager.literal("testwin").executes(c -> {
+                            AuctionState.testWin();
+                            return 1;
+                        }))
                         .then(ClientCommandManager.literal("debug").executes(c -> {
                             AuctionState.debug = !AuctionState.debug;
                             AuctionState.say(MinecraftClient.getInstance(),
@@ -161,11 +171,7 @@ public class AuctionHudClient implements ClientModInitializer {
 
         if (name == null || amount <= 0) return;
 
-        if (!AuctionState.running) {
-            AuctionState.say(mc, "[AuctionHud] " + name + " paid " + AuctionState.formatMoney(amount)
-                    + " but no auction is running (press K, then Start Auction)");
-            return;
-        }
-        AuctionState.placeBid(name, amount);
+        // during an auction it's a bid; otherwise it just adds to the session money
+        AuctionState.onPayment(name, amount);
     }
 }
