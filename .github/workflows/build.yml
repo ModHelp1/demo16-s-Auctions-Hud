@@ -13,9 +13,9 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.8
+          gradle-version: 9.2.1
       - run: gradle build
       - uses: actions/upload-artifact@v4
         with:
           name: demo16s-auctions-hud
-          path: build/libs/demo16s-auctions-hud-1.0.0.jar
+          path: build/libs/demo16s-auctions-hud-1.0.1.jar
