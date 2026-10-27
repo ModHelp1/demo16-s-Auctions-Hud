@@ -214,29 +214,32 @@ public final class AuctionHud {
             String nb = "no bids yet";
             ctx.drawText(font, nb, lx + (lw - font.getWidth(nb)) / 2, ly + 9, s.dim, false);
         } else {
-            // skin (right)
+            // skin (left)
             int face = 20;
-            int fx = lx + lw - face - 4, fy = ly + 3;
+            int fx = lx + 4, fy = ly + 3;
             Gfx.border(ctx, fx - 1, fy - 1, face + 2, face + 2, s.border);
             if (m.entry != null) {
                 var skin = m.entry.getSkinTextures();
                 PlayerSkinDrawer.draw(ctx, skin, fx, fy, face);
+            } else if (SkinFetcher.face(m.bidder) != null) {
+                SkinFetcher.draw(ctx, SkinFetcher.face(m.bidder), fx, fy, face, 1f);
             } else {
                 ctx.fill(fx, fy, fx + face, fy + face, s.barBg);
                 String letter = m.bidder.substring(0, 1).toUpperCase();
                 ctx.drawText(font, letter, fx + face / 2 - font.getWidth(letter) / 2, fy + face / 2 - 4, s.who, sh);
             }
 
-            // label + big amount (left)
-            ctx.drawText(font, m.leadLabel, lx + 5, ly + 3, s.dim, false);
+            // label + big amount (right of the skin)
+            int tx = fx + face + 6;
+            ctx.drawText(font, m.leadLabel, tx, ly + 3, s.dim, false);
             String money = AuctionState.formatMoney(m.bid);
-            Gfx.scaled(ctx, font, money, lx + 5, ly + 12, 1.5f, s.money, sh);
+            Gfx.scaled(ctx, font, money, tx, ly + 12, 1.5f, s.money, sh);
 
-            // name (between amount and skin, right aligned to the skin)
+            // name (right aligned to the edge of the box)
             int moneyW = (int) (font.getWidth(money) * 1.5f);
-            int avail = Math.max(10, fx - 6 - (lx + 5 + moneyW + 8));
+            int avail = Math.max(10, (lx + lw - 5) - (tx + moneyW + 8));
             String nm = font.trimToWidth(m.bidder, avail);
-            ctx.drawText(font, nm, fx - 5 - font.getWidth(nm), ly + 9, s.who, sh);
+            ctx.drawText(font, nm, lx + lw - 5 - font.getWidth(nm), ly + 9, s.who, sh);
         }
 
         // ---- footer: worth / min bid ----

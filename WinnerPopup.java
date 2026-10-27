@@ -119,6 +119,8 @@ public final class WinnerPopup {
         if (e != null) {
             var skin = e.getSkinTextures();
             PlayerSkinDrawer.draw(ctx, skin, fx, fy, face);
+        } else if (SkinFetcher.face(name) != null) {
+            SkinFetcher.draw(ctx, SkinFetcher.face(name), fx, fy, face, master);
         } else {
             ctx.fill(fx, fy, fx + face, fy + face, Gfx.alpha(0xFF2A2A2A, master));
             String letter = name.substring(0, 1).toUpperCase();
