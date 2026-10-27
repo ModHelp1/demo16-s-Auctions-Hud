@@ -228,7 +228,7 @@ public final class AuctionState {
         if (!s.contains(":")) s = "minecraft:" + s;
         Identifier id = Identifier.tryParse(s);
         if (id != null && Registries.ITEM.containsId(id)) {
-            return new ItemStack(Registries.ITEM.getValue(id));
+            return new ItemStack(Registries.ITEM.get(id));
         }
         return new ItemStack(Items.TOTEM_OF_UNDYING);
     }
