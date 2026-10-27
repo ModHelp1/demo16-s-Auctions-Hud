@@ -1,14 +1,14 @@
 package com.demo16.auctionhud;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import net.minecraft.class_1799;
+import net.minecraft.class_1802;
+import net.minecraft.class_2561;
+import net.minecraft.class_2960;
+import net.minecraft.class_310;
+import net.minecraft.class_3414;
+import net.minecraft.class_3417;
+import net.minecraft.class_640;
+import net.minecraft.class_7923;
 
 public final class AuctionState {
     // ---- settings ----
@@ -25,6 +25,7 @@ public final class AuctionState {
     public static int snipeSec = 5;
     public static boolean sounds = true;
     public static boolean winEffect = true;  // fireworks when someone wins
+    public static int styleIndex = HudStyle.defaultIndex();  // chosen HUD style (see Choose Style)
     public static int blastsPlayed = 0;
     public static boolean announce = false;  // say bids / winner in public chat
     public static long lastBidTime = 0;
@@ -40,17 +41,21 @@ public final class AuctionState {
     public static long topBid = 0;
     public static long sessionMoney = 0;
     public static long endTime = 0;
+    public static int bidCount = 0;
 
-    // ---- winner popup (3 seconds) ----
-    public static final long POPUP_MS = 3000;
+    // ---- winner screen (5 seconds) ----
+    public static final long POPUP_MS = 5000;
     public static long popupUntil = 0;
     public static String popupName = null;
-    public static String popupItem = "";
+    public static String popupItem = "";   // item name only
+    public static int popupQty = 1;
+    public static int popupBids = 1;
+    public static long popupTotal = 0;      // session total after this sale
     public static long popupBid = 0;
-    public static PlayerListEntry popupEntry = null;
+    public static class_640 popupEntry = null;
 
     // ---- who is winning right now (for the skin) ----
-    public static PlayerListEntry topEntry = null;
+    public static class_640 topEntry = null;
 
     public static boolean debug = false;
 
@@ -63,6 +68,7 @@ public final class AuctionState {
         finished = false;
         topBidder = null;
         topBid = 0;
+        bidCount = 0;
         topEntry = null;
         popupUntil = 0;
         endTime = System.currentTimeMillis() + timerSec * 1000L;
@@ -78,6 +84,7 @@ public final class AuctionState {
         visible = false;
         topBidder = null;
         topBid = 0;
+        bidCount = 0;
         topEntry = null;
         popupUntil = 0;
         endTime = 0;
@@ -85,11 +92,14 @@ public final class AuctionState {
 
     /** Shows the winner popup + fireworks right now (for testing / setting things up). */
     public static void testWin() {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        String who = mc.player != null ? mc.player.getName().getString() : "Steve";
+        class_310 mc = class_310.method_1551();
+        String who = mc.field_1724 != null ? mc.field_1724.method_5477().getString() : "Steve";
         popupName = who;
         popupBid = 5_000_000L;
-        popupItem = (quantity > 1 ? quantity + "x " : "") + stack().getName().getString();
+        popupItem = stack().method_7964().getString();
+        popupQty = quantity;
+        popupBids = 3;
+        popupTotal = Math.max(sessionMoney, popupBid);
         popupEntry = lookup(who);
         popupUntil = System.currentTimeMillis() + POPUP_MS;
         blastsPlayed = 0;
@@ -109,20 +119,20 @@ public final class AuctionState {
         lastPayKey = key;
         lastPayTime = now;
 
-        MinecraftClient mc = MinecraftClient.getInstance();
+        class_310 mc = class_310.method_1551();
         if (running) {
             placeBid(name, amount);
         } else {
             sessionMoney += amount;
-            if (mc.player != null) {
-                mc.player.sendMessage(Text.literal("+" + formatMoney(amount) + " from " + name
+            if (mc.field_1724 != null) {
+                mc.field_1724.method_7353(class_2561.method_43470("+" + formatMoney(amount) + " from " + name
                         + "  (session " + formatMoney(sessionMoney) + ")"), true);
             }
         }
     }
 
     public static void placeBid(String name, long amount) {
-        MinecraftClient mc = MinecraftClient.getInstance();
+        class_310 mc = class_310.method_1551();
         if (!running) {
             if (debug) say(mc, "[AuctionHud] payment from " + name + " ignored: no auction running");
             return;
@@ -131,6 +141,7 @@ public final class AuctionState {
             say(mc, "[AuctionHud] " + name + " paid " + formatMoney(amount) + " (below min bid " + formatMoney(minBid) + ")");
             return;
         }
+        bidCount++;
         if (amount > topBid) {
             long now = System.currentTimeMillis();
             topBid = amount;
@@ -141,7 +152,7 @@ public final class AuctionState {
             if (antiSnipe && endTime - now < snipeSec * 1000L) {
                 endTime = now + snipeSec * 1000L;
             }
-            sound(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.2f);
+            sound(class_3417.field_14627, 1.2f);
             if (announce && now - lastAnnounce > 2000) {
                 lastAnnounce = now;
                 chat(mc, "[Auction] " + name + " leads with " + formatMoney(amount) + "!");
@@ -149,15 +160,15 @@ public final class AuctionState {
         }
     }
 
-    public static void sound(SoundEvent ev, float pitch) {
+    public static void sound(class_3414 ev, float pitch) {
         if (!sounds) return;
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc != null && mc.player != null) mc.player.playSound(ev, 1.0f, pitch);
+        class_310 mc = class_310.method_1551();
+        if (mc != null && mc.field_1724 != null) mc.field_1724.method_5783(ev, 1.0f, pitch);
     }
 
     /** Sends a real chat message to the server. */
-    public static void chat(MinecraftClient mc, String msg) {
-        if (mc != null && mc.getNetworkHandler() != null) mc.getNetworkHandler().sendChatMessage(msg);
+    public static void chat(class_310 mc, String msg) {
+        if (mc != null && mc.method_1562() != null) mc.method_1562().method_45729(msg);
     }
 
     /** Call once per client tick. */
@@ -165,19 +176,22 @@ public final class AuctionState {
         if (running && System.currentTimeMillis() >= closeTime()) {
             running = false;
             finished = true;
-            MinecraftClient mc = MinecraftClient.getInstance();
+            class_310 mc = class_310.method_1551();
             if (topBidder == null && announce) chat(mc, "[Auction] Ended with no bids.");
             if (topBidder != null) {
                 sessionMoney += topBid;
                 popupName = topBidder;
                 popupBid = topBid;
-                popupItem = (quantity > 1 ? quantity + "x " : "") + stack().getName().getString();
-                PlayerListEntry fresh = lookup(topBidder);
+                popupItem = stack().method_7964().getString();
+                popupQty = quantity;
+                popupBids = Math.max(1, bidCount);
+                popupTotal = sessionMoney;
+                class_640 fresh = lookup(topBidder);
                 popupEntry = fresh != null ? fresh : topEntry;
                 popupUntil = System.currentTimeMillis() + POPUP_MS;
                 blastsPlayed = 0;
                 say(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid));
-                sound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0f);
+                sound(class_3417.field_14709, 1.0f);
                 if (announce) chat(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid) + "!");
             }
         }
@@ -187,36 +201,36 @@ public final class AuctionState {
         if (winEffect && popupName != null && nowMs < popupUntil) {
             long el = nowMs - (popupUntil - POPUP_MS);
             while (blastsPlayed < Fireworks.BURSTS && el >= (long) (Fireworks.explodeTime(blastsPlayed) * 1000)) {
-                sound(SoundEvents.ENTITY_FIREWORK_ROCKET_BLAST, 0.9f + 0.1f * (blastsPlayed % 3));
+                sound(class_3417.field_14917, 0.9f + 0.1f * (blastsPlayed % 3));
                 blastsPlayed++;
             }
         }
     }
 
     /** Skin of the current leader (looked up again if they weren't in the tab list yet). */
-    public static PlayerListEntry leaderEntry() {
+    public static class_640 leaderEntry() {
         if (topBidder != null && topEntry == null) topEntry = lookup(topBidder);
         return topEntry;
     }
 
-    public static PlayerListEntry lookup(String name) {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.getNetworkHandler() == null || name == null) return null;
-        return mc.getNetworkHandler().getPlayerListEntry(name);
+    public static class_640 lookup(String name) {
+        class_310 mc = class_310.method_1551();
+        if (mc.method_1562() == null || name == null) return null;
+        return mc.method_1562().method_2874(name);
     }
 
-    public static void say(MinecraftClient mc, String msg) {
-        if (mc != null && mc.player != null) mc.player.sendMessage(Text.literal(msg), false);
+    public static void say(class_310 mc, String msg) {
+        if (mc != null && mc.field_1724 != null) mc.field_1724.method_7353(class_2561.method_43470(msg), false);
     }
 
-    public static ItemStack stack() {
+    public static class_1799 stack() {
         String s = itemId.trim().toLowerCase().replace(' ', '_');
         if (!s.contains(":")) s = "minecraft:" + s;
-        Identifier id = Identifier.tryParse(s);
-        if (id != null && Registries.ITEM.containsId(id)) {
-            return new ItemStack(Registries.ITEM.get(id));
+        class_2960 id = class_2960.method_12829(s);
+        if (id != null && class_7923.field_41178.method_10250(id)) {
+            return new class_1799(class_7923.field_41178.method_63535(id));
         }
-        return new ItemStack(Items.TOTEM_OF_UNDYING);
+        return new class_1799(class_1802.field_8288);
     }
 
     public static long parseMoney(String s) {

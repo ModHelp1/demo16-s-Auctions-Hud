@@ -1,48 +1,48 @@
 package com.demo16.auctionhud;
 
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.class_2561;
+import net.minecraft.class_332;
+import net.minecraft.class_4185;
+import net.minecraft.class_437;
 import org.lwjgl.glfw.GLFW;
 
 /** Drag the HUD with the mouse to put it EXACTLY where you want. */
-public class MoveScreen extends Screen {
-    private final Screen parent;
+public class MoveScreen extends class_437 {
+    private final class_437 parent;
     private boolean dragging = false;
     private boolean wasDown = true;
     private boolean first = true;
     private int grabX, grabY;
 
-    public MoveScreen(Screen parent) {
-        super(Text.literal("Move HUD"));
+    public MoveScreen(class_437 parent) {
+        super(class_2561.method_43470("Move HUD"));
         this.parent = parent;
     }
 
     @Override
-    protected void init() {
-        int cx = this.width / 2;
-        int by = this.height - 28;
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Center horizontally"), b ->
-                AuctionState.hudX = (this.width - AuctionHud.W) / 2)
-                .dimensions(cx - 155, by, 100, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Reset (10, 10)"), b -> {
+    protected void method_25426() {
+        int cx = this.field_22789 / 2;
+        int by = this.field_22790 - 28;
+        this.method_37063(class_4185.method_46430(class_2561.method_43470("Center horizontally"), b ->
+                AuctionState.hudX = (this.field_22789 - AuctionHud.W) / 2)
+                .method_46434(cx - 155, by, 100, 20).method_46431());
+        this.method_37063(class_4185.method_46430(class_2561.method_43470("Reset (10, 10)"), b -> {
             AuctionState.hudX = 10;
             AuctionState.hudY = 10;
-        }).dimensions(cx - 50, by, 100, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
-                .dimensions(cx + 55, by, 100, 20).build());
+        }).method_46434(cx - 50, by, 100, 20).method_46431());
+        this.method_37063(class_4185.method_46430(class_2561.method_43470("Done"), b -> method_25419())
+                .method_46434(cx + 55, by, 100, 20).method_46431());
     }
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        super.render(ctx, mouseX, mouseY, delta);
+    public void method_25394(class_332 ctx, int mouseX, int mouseY, float delta) {
+        super.method_25394(ctx, mouseX, mouseY, delta);
 
-        int x = AuctionHud.clampX(AuctionState.hudX, this.width);
-        int y = AuctionHud.clampY(AuctionState.hudY, this.height);
+        int x = AuctionHud.clampX(AuctionState.hudX, this.field_22789);
+        int y = AuctionHud.clampY(AuctionState.hudY, this.field_22790);
 
         // mouse button state (works the same on every Minecraft version)
-        long window = this.client.getWindow().getHandle();
+        long window = this.field_22787.method_22683().method_4490();
         boolean down = GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
         if (first) { wasDown = down; first = false; }
 
@@ -54,23 +54,23 @@ public class MoveScreen extends Screen {
         }
         if (!down) dragging = false;
         if (dragging) {
-            x = AuctionHud.clampX(mouseX - grabX, this.width);
-            y = AuctionHud.clampY(mouseY - grabY, this.height);
+            x = AuctionHud.clampX(mouseX - grabX, this.field_22789);
+            y = AuctionHud.clampY(mouseY - grabY, this.field_22790);
             AuctionState.hudX = x;
             AuctionState.hudY = y;
         }
         wasDown = down;
 
-        AuctionHud.drawAt(ctx, this.textRenderer, x, y, true);
+        AuctionHud.drawAt(ctx, this.field_22793, x, y, true);
 
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("Drag the HUD anywhere with your mouse"), this.width / 2, 14, 0xFFFFD21F);
-        ctx.drawCenteredTextWithShadow(this.textRenderer,
-                Text.literal("X: " + x + "   Y: " + y), this.width / 2, 28, 0xFFFFE066);
+        ctx.method_27534(this.field_22793,
+                class_2561.method_43470("Drag the HUD anywhere with your mouse"), this.field_22789 / 2, 14, 0xFFFFD21F);
+        ctx.method_27534(this.field_22793,
+                class_2561.method_43470("X: " + x + "   Y: " + y), this.field_22789 / 2, 28, 0xFFFFE066);
     }
 
     @Override
-    public void close() {
-        this.client.setScreen(parent);
+    public void method_25419() {
+        this.field_22787.method_1507(parent);
     }
 }
