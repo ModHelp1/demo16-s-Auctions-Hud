@@ -1,7 +1,7 @@
 package com.demo16.auctionhud;
 
 import java.util.Random;
-import net.minecraft.class_332;
+import net.minecraft.client.gui.DrawContext;
 
 /**
  * Clean 2D firework show + falling confetti, drawn behind the winner screen.
@@ -52,13 +52,13 @@ public final class Fireworks {
         return LAUNCH[i] + RISE;
     }
 
-    public static void render(class_332 ctx, long elapsedMs, int sw, int sh, int accent, float master) {
+    public static void render(DrawContext ctx, long elapsedMs, int sw, int sh, int accent, float master) {
         float t = elapsedMs / 1000f;
         float scale = Math.max(1f, sh / 240f);
 
         // soft warm flash at the very start
         if (t < 0.22f) {
-            ctx.method_25294(0, 0, sw, sh, Gfx.alpha(0xFFFFF4C2, (1f - t / 0.22f) * 0.28f * master));
+            ctx.fill(0, 0, sw, sh, Gfx.alpha(0xFFFFF4C2, (1f - t / 0.22f) * 0.28f * master));
         }
 
         confetti(ctx, t, sw, sh, scale, accent, master);
@@ -86,19 +86,19 @@ public final class Fireworks {
         return sh - (sh - by) * p;
     }
 
-    private static void rocket(class_332 ctx, float lt, int bx, int by, int sh, float master) {
+    private static void rocket(DrawContext ctx, float lt, int bx, int by, int sh, float master) {
         for (int k = 9; k >= 1; k--) {
             float tt = lt - k * 0.022f;
             if (tt < 0) continue;
             int ry = (int) rocketY(tt, by, sh);
             int c = Gfx.alpha(0xFFFFC875, (1f - k / 10f) * 0.8f * master);
-            ctx.method_25294(bx, ry, bx + 1, ry + 2, c);
+            ctx.fill(bx, ry, bx + 1, ry + 2, c);
         }
         int hy = (int) rocketY(lt, by, sh);
-        ctx.method_25294(bx - 1, hy - 1, bx + 2, hy + 2, Gfx.alpha(0xFFFFFFFF, master));
+        ctx.fill(bx - 1, hy - 1, bx + 2, hy + 2, Gfx.alpha(0xFFFFFFFF, master));
     }
 
-    private static void burst(class_332 ctx, int i, float et, int bx, int by, float scale, int accent, float master) {
+    private static void burst(DrawContext ctx, int i, float et, int bx, int by, float scale, int accent, float master) {
         Random r = new Random(9001L * (i + 3));
         int colA = (i == 0 || i == 5) ? (accent & 0xFFFFFF) : COLORS[i % COLORS.length];
         int colB = COLORS[(i + 3) % COLORS.length];
@@ -143,7 +143,7 @@ public final class Fireworks {
     }
 
     /** One spark with a short fading tail. */
-    private static void spark(class_332 ctx, int bx, int by, float cos, float sin, float speed, float grav, float et,
+    private static void spark(DrawContext ctx, int bx, int by, float cos, float sin, float speed, float grav, float et,
                               int rgb, float fade, float hot, int head, int tail) {
         for (int k = 0; k <= tail; k++) {
             float tt = et - k * 0.03f;
@@ -155,13 +155,13 @@ public final class Fireworks {
             if (a <= 0.02f) continue;
             int size = (k == 0) ? head : 1;
             int c = Gfx.blend(0xFF000000 | rgb, 0xFFFFFFFF, k == 0 ? hot : 0f);
-            ctx.method_25294(px, py, px + size, py + size, Gfx.alpha(c, a));
+            ctx.fill(px, py, px + size, py + size, Gfx.alpha(c, a));
         }
     }
 
     // ---------------------------------------------------------------------
-    private static void confetti(class_332 ctx, float t, int sw, int sh, float scale, int accent, float master) {
-        var m = ctx.method_51448();
+    private static void confetti(DrawContext ctx, float t, int sw, int sh, float scale, int accent, float master) {
+        var m = ctx.getMatrices();
         float unit = Math.max(1f, scale * 0.8f);
         for (int i = 0; i < CONF; i++) {
             float lt = t - C_DELAY[i];
@@ -178,7 +178,7 @@ public final class Fireworks {
             m.translate(x, y);
             m.rotate(lt * C_SPIN[i] * 0.5f + C_PH[i]);
             m.scale(w / 2f, h / 2f);
-            ctx.method_25294(-1, -1, 1, 1, c);
+            ctx.fill(-1, -1, 1, 1, c);
             m.popMatrix();
         }
     }

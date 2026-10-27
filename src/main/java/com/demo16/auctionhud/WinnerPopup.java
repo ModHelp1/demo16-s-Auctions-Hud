@@ -1,9 +1,9 @@
 package com.demo16.auctionhud;
 
-import net.minecraft.class_327;
-import net.minecraft.class_332;
-import net.minecraft.class_640;
-import net.minecraft.class_7532;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.gui.PlayerSkinDrawer;
 
 /**
  * The "AUCTION WON" screen: big item with sunburst, winner skin portrait, name, price, fireworks + confetti.
@@ -20,12 +20,12 @@ public final class WinnerPopup {
 
     private WinnerPopup() {}
 
-    public static void render(class_332 ctx, class_327 font) {
+    public static void render(DrawContext ctx, TextRenderer font) {
         long now = System.currentTimeMillis();
         if (now >= AuctionState.popupUntil || AuctionState.popupName == null) return;
 
-        int sw = ctx.method_51421();
-        int sh = ctx.method_51443();
+        int sw = ctx.getScaledWindowWidth();
+        int sh = ctx.getScaledWindowHeight();
         long el = now - (AuctionState.popupUntil - AuctionState.POPUP_MS);
         float t = el / 1000f;
         float total = AuctionState.POPUP_MS / 1000f;
@@ -38,7 +38,7 @@ public final class WinnerPopup {
         int glow = Gfx.opaque(st.glow);
 
         // darken the world a bit so the show pops
-        ctx.method_25294(0, 0, sw, sh, Gfx.alpha(0xFF000000, 0.5f * master));
+        ctx.fill(0, 0, sw, sh, Gfx.alpha(0xFF000000, 0.5f * master));
 
         if (AuctionState.winEffect) {
             Fireworks.render(ctx, el, sw, sh, glow, master);
@@ -52,7 +52,7 @@ public final class WinnerPopup {
         float s = fit * pop * outS;
         if (s < 0.03f) return;
 
-        var m = ctx.method_51448();
+        var m = ctx.getMatrices();
         m.pushMatrix();
         m.translate(sw / 2f, sh / 2f);
         m.scale(s, s);
@@ -60,8 +60,8 @@ public final class WinnerPopup {
         m.popMatrix();
     }
 
-    private static void content(class_332 ctx, class_327 font, float t, float master, int glow) {
-        var m = ctx.method_51448();
+    private static void content(DrawContext ctx, TextRenderer font, float t, float master, int glow) {
+        var m = ctx.getMatrices();
         int white = Gfx.alpha(0xFFFFFFFF, master);
         int nameCol = Gfx.alpha(Gfx.blend(glow, 0xFFFFFFFF, 0.6f), master);
 
@@ -75,7 +75,7 @@ public final class WinnerPopup {
         m.pushMatrix();
         m.translate(icx - 20f, icy - 20f + bob);
         m.scale(2.5f, 2.5f);
-        ctx.method_51427(AuctionState.stack(), 0, 0);
+        ctx.drawItem(AuctionState.stack(), 0, 0);
         m.popMatrix();
 
         // ================= title:  * AUCTION WON * =================
@@ -99,7 +99,7 @@ public final class WinnerPopup {
 
         // ================= skin portrait + name =================
         String name = AuctionState.popupName;
-        int nw = Math.max(1, font.method_1727(name));
+        int nw = Math.max(1, font.getWidth(name));
         float nameScale = 2.2f;
         if (nw * nameScale > 150f) nameScale = Math.max(1f, 150f / nw);
         float nameW = nw * nameScale;
@@ -111,16 +111,16 @@ public final class WinnerPopup {
 
         // soft glow behind the portrait, then frame
         for (int i = 4; i >= 1; i--) {
-            ctx.method_25294(fx - 2 - i, fy - 2 - i, fx + face + 2 + i, fy + face + 2 + i, Gfx.alpha(glow, 0.07f * master));
+            ctx.fill(fx - 2 - i, fy - 2 - i, fx + face + 2 + i, fy + face + 2 + i, Gfx.alpha(glow, 0.07f * master));
         }
-        ctx.method_25294(fx - 2, fy - 2, fx + face + 2, fy + face + 2, Gfx.alpha(glow, master));
-        ctx.method_25294(fx - 1, fy - 1, fx + face + 1, fy + face + 1, Gfx.alpha(0xFF0A0A0A, master));
-        class_640 e = AuctionState.popupEntry;
+        ctx.fill(fx - 2, fy - 2, fx + face + 2, fy + face + 2, Gfx.alpha(glow, master));
+        ctx.fill(fx - 1, fy - 1, fx + face + 1, fy + face + 1, Gfx.alpha(0xFF0A0A0A, master));
+        PlayerListEntry e = AuctionState.popupEntry;
         if (e != null) {
-            var skin = e.method_52810();
-            class_7532.method_52722(ctx, skin, fx, fy, face);
+            var skin = e.getSkinTextures();
+            PlayerSkinDrawer.draw(ctx, skin, fx, fy, face);
         } else {
-            ctx.method_25294(fx, fy, fx + face, fy + face, Gfx.alpha(0xFF2A2A2A, master));
+            ctx.fill(fx, fy, fx + face, fy + face, Gfx.alpha(0xFF2A2A2A, master));
             String letter = name.substring(0, 1).toUpperCase();
             Gfx.centeredScaled(ctx, font, letter, fx + face / 2f, fy + face / 2f - 9f, 2f, nameCol, true);
         }
@@ -143,7 +143,7 @@ public final class WinnerPopup {
         String sub = AuctionState.popupQty + " \u00D7 " + AuctionState.popupItem
                 + " \u00B7 " + bids + (bids == 1 ? " bid" : " bids")
                 + " \u00B7 total " + AuctionState.formatMoney(AuctionState.popupTotal);
-        float subScale = Math.min(1f, 250f / Math.max(1, font.method_1727(sub)));
+        float subScale = Math.min(1f, 250f / Math.max(1, font.getWidth(sub)));
         Gfx.centeredScaled(ctx, font, sub, 0, 62, subScale, Gfx.alpha(SUB, master), true);
 
         // ================= twinkles around the card =================
@@ -154,8 +154,8 @@ public final class WinnerPopup {
     }
 
     /** Slowly turning golden rays behind the item. */
-    private static void rays(class_332 ctx, int cx, int cy, float t, int color, float master) {
-        var m = ctx.method_51448();
+    private static void rays(DrawContext ctx, int cx, int cy, float t, int color, float master) {
+        var m = ctx.getMatrices();
         int n = 14;
         for (int i = 0; i < n; i++) {
             float ang = (float) (Math.PI * 2 * i / n + t * 0.35);
@@ -169,7 +169,7 @@ public final class WinnerPopup {
                 int x0 = 14 + (int) (len * k / 12f);
                 int x1 = 14 + (int) (len * (k + 1) / 12f);
                 int hh = k < 5 ? 2 : 1;
-                ctx.method_25294(x0, -hh, x1, hh, c);
+                ctx.fill(x0, -hh, x1, hh, c);
             }
             m.popMatrix();
         }

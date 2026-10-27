@@ -1,31 +1,31 @@
 package com.demo16.auctionhud;
 
-import net.minecraft.class_2561;
-import net.minecraft.class_332;
-import net.minecraft.class_4185;
-import net.minecraft.class_437;
+import net.minecraft.text.Text;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.screen.Screen;
 
 /** "Choose a Style": grid of live HUD previews. Click one to use it. */
-public class StyleScreen extends class_437 {
+public class StyleScreen extends Screen {
     private static int savedPage = 0;
 
-    private final class_437 parent;
-    private class_4185[] cells = new class_4185[0];
-    private class_4185 prev, next;
+    private final Screen parent;
+    private ButtonWidget[] cells = new ButtonWidget[0];
+    private ButtonWidget prev, next;
     private int[] cellX = new int[0], cellY = new int[0];
     private int cardW, cardH, perPage, pages;
     private float ps;
     private int page;
 
-    public StyleScreen(class_437 parent) {
-        super(class_2561.method_43470("Choose a Style"));
+    public StyleScreen(Screen parent) {
+        super(Text.literal("Choose a Style"));
         this.parent = parent;
         this.page = savedPage;
     }
 
     @Override
-    protected void method_25426() {
-        int sw = this.field_22789, sh = this.field_22790;
+    protected void init() {
+        int sw = this.width, sh = this.height;
         int total = HudStyle.ALL.size();
 
         // preview size: aim for 4 columns, as big as fits (max 0.8x)
@@ -44,34 +44,34 @@ public class StyleScreen extends class_437 {
         int gridW = cols * cardW + (cols - 1) * gap;
         int gx = (sw - gridW) / 2;
 
-        cells = new class_4185[perPage];
+        cells = new ButtonWidget[perPage];
         cellX = new int[perPage];
         cellY = new int[perPage];
         for (int i = 0; i < perPage; i++) {
             final int slot = i;
             cellX[i] = gx + (i % cols) * (cardW + gap);
             cellY[i] = topY + (i / cols) * cellH;
-            cells[i] = class_4185.method_46430(class_2561.method_43473(), b -> pick(slot))
-                    .method_46434(cellX[i], cellY[i], cardW, cardH).method_46431();
-            this.method_37063(cells[i]);
+            cells[i] = ButtonWidget.builder(Text.empty(), b -> pick(slot))
+                    .dimensions(cellX[i], cellY[i], cardW, cardH).build();
+            this.addDrawableChild(cells[i]);
         }
 
         // bottom row:  < | Test win screen | Done | >
         int by = sh - 24;
         int totalW = 20 + 4 + 110 + 4 + 80 + 4 + 20;
         int bx = (sw - totalW) / 2;
-        prev = class_4185.method_46430(class_2561.method_43470("\u25C0"), b -> flip(-1))
-                .method_46434(bx, by, 20, 20).method_46431();
-        this.method_37063(prev);
-        this.method_37063(class_4185.method_46430(class_2561.method_43470("Test win screen"), b -> {
+        prev = ButtonWidget.builder(Text.literal("\u25C0"), b -> flip(-1))
+                .dimensions(bx, by, 20, 20).build();
+        this.addDrawableChild(prev);
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Test win screen"), b -> {
             AuctionState.testWin();
-            this.field_22787.method_1507(null);
-        }).method_46434(bx + 24, by, 110, 20).method_46431());
-        this.method_37063(class_4185.method_46430(class_2561.method_43470("Done"), b -> method_25419())
-                .method_46434(bx + 138, by, 80, 20).method_46431());
-        next = class_4185.method_46430(class_2561.method_43470("\u25B6"), b -> flip(1))
-                .method_46434(bx + 222, by, 20, 20).method_46431();
-        this.method_37063(next);
+            this.client.setScreen(null);
+        }).dimensions(bx + 24, by, 110, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), b -> close())
+                .dimensions(bx + 138, by, 80, 20).build());
+        next = ButtonWidget.builder(Text.literal("\u25B6"), b -> flip(1))
+                .dimensions(bx + 222, by, 20, 20).build();
+        this.addDrawableChild(next);
 
         refresh();
     }
@@ -85,14 +85,14 @@ public class StyleScreen extends class_437 {
     private void refresh() {
         for (int i = 0; i < perPage; i++) {
             boolean has = page * perPage + i < HudStyle.ALL.size();
-            cells[i].field_22764 = has;
-            cells[i].field_22763 = has;
+            cells[i].visible = has;
+            cells[i].active = has;
         }
         boolean multi = pages > 1;
-        prev.field_22764 = multi;
-        prev.field_22763 = multi;
-        next.field_22764 = multi;
-        next.field_22763 = multi;
+        prev.visible = multi;
+        prev.active = multi;
+        next.visible = multi;
+        next.active = multi;
     }
 
     private void pick(int slot) {
@@ -101,7 +101,7 @@ public class StyleScreen extends class_437 {
     }
 
     // no @Override on purpose (same trick as the item picker): works whichever exact signature this version uses
-    public boolean method_25401(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (pages > 1) {
             if (verticalAmount > 0) flip(-1);
             else if (verticalAmount < 0) flip(1);
@@ -110,15 +110,15 @@ public class StyleScreen extends class_437 {
     }
 
     @Override
-    public void method_25394(class_332 ctx, int mouseX, int mouseY, float delta) {
-        super.method_25394(ctx, mouseX, mouseY, delta);
-        int cx = this.field_22789 / 2;
+    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        super.render(ctx, mouseX, mouseY, delta);
+        int cx = this.width / 2;
 
-        Gfx.centered(ctx, this.field_22793, "Choose a Style", cx, 10, 0xFFFFFFFF, true);
+        Gfx.centered(ctx, this.textRenderer, "Choose a Style", cx, 10, 0xFFFFFFFF, true);
         String sub = "Click a style to use it" + (pages > 1 ? "   (page " + (page + 1) + "/" + pages + ")" : "");
-        Gfx.centered(ctx, this.field_22793, sub, cx, 22, 0xFFA0A0A0, false);
+        Gfx.centered(ctx, this.textRenderer, sub, cx, 22, 0xFFA0A0A0, false);
 
-        var m = ctx.method_51448();
+        var m = ctx.getMatrices();
         for (int i = 0; i < perPage; i++) {
             int idx = page * perPage + i;
             if (idx >= HudStyle.ALL.size()) continue;
@@ -131,7 +131,7 @@ public class StyleScreen extends class_437 {
             m.pushMatrix();
             m.translate(x, y);
             m.scale(ps, ps);
-            AuctionHud.drawPreview(ctx, this.field_22793, st);
+            AuctionHud.drawPreview(ctx, this.textRenderer, st);
             m.popMatrix();
 
             if (selected) {
@@ -142,13 +142,13 @@ public class StyleScreen extends class_437 {
             }
 
             String label = (selected ? "\u2713 " : "") + st.name;
-            Gfx.centered(ctx, this.field_22793, label, x + cardW / 2, y + cardH + 3,
+            Gfx.centered(ctx, this.textRenderer, label, x + cardW / 2, y + cardH + 3,
                     selected ? 0xFFFFFFFF : (hover ? 0xFFE0E0E0 : 0xFFA0A0A0), selected);
         }
     }
 
     @Override
-    public void method_25419() {
-        this.field_22787.method_1507(parent);
+    public void close() {
+        this.client.setScreen(parent);
     }
 }

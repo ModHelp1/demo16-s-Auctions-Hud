@@ -9,11 +9,11 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.minecraft.class_2561;
-import net.minecraft.class_2960;
-import net.minecraft.class_304;
-import net.minecraft.class_310;
-import net.minecraft.class_3675;
+import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.util.InputUtil;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,23 +27,23 @@ public class AuctionHudClient implements ClientModInitializer {
     private static final Pattern PAY2 =
             Pattern.compile("(?:received|got) \\$?" + NUM + " from (\\w{1,16})", Pattern.CASE_INSENSITIVE);
 
-    private static final class_304.class_11900 CATEGORY =
-            class_304.class_11900.method_74698(class_2960.method_60655("demo16_auction_hud", "main"));
-    private static class_304 openKey;
+    private static final KeyBinding.Category CATEGORY =
+            KeyBinding.Category.create(Identifier.of("demo16_auction_hud", "main"));
+    private static KeyBinding openKey;
 
     @Override
     public void onInitializeClient() {
         openKey = KeyBindingHelper.registerKeyBinding(
-                new class_304("key.demo16_auction_hud.open", class_3675.class_307.field_1668, 75 /* K */, CATEGORY));
+                new KeyBinding("key.demo16_auction_hud.open", InputUtil.Type.KEYSYM, 75 /* K */, CATEGORY));
 
         HudElementRegistry.attachElementBefore(
                 VanillaHudElements.CHAT,
-                class_2960.method_60655("demo16_auction_hud", "auction_hud"),
+                Identifier.of("demo16_auction_hud", "auction_hud"),
                 AuctionHud::render);
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (openKey.method_1436()) {
-                client.method_1507(new SetupScreen());
+            while (openKey.wasPressed()) {
+                client.setScreen(new SetupScreen());
             }
             AuctionState.tick();
         });
@@ -60,7 +60,7 @@ public class AuctionHudClient implements ClientModInitializer {
                         .then(ClientCommandManager.literal("session")
                                 .then(ClientCommandManager.literal("reset").executes(c -> {
                                     AuctionState.sessionMoney = 0;
-                                    AuctionState.say(class_310.method_1551(), "[AuctionHud] session money reset");
+                                    AuctionState.say(MinecraftClient.getInstance(), "[AuctionHud] session money reset");
                                     return 1;
                                 })))
                         .then(ClientCommandManager.literal("testwin").executes(c -> {
@@ -69,7 +69,7 @@ public class AuctionHudClient implements ClientModInitializer {
                         }))
                         .then(ClientCommandManager.literal("debug").executes(c -> {
                             AuctionState.debug = !AuctionState.debug;
-                            AuctionState.say(class_310.method_1551(),
+                            AuctionState.say(MinecraftClient.getInstance(),
                                     "[AuctionHud] debug " + (AuctionState.debug ? "ON" : "OFF"));
                             return 1;
                         }))
@@ -113,7 +113,7 @@ public class AuctionHudClient implements ClientModInitializer {
     private static String lastRaw = "";
     private static long lastRawTime = 0;
 
-    private static void onMessage(class_2561 message, boolean overlay) {
+    private static void onMessage(Text message, boolean overlay) {
         String raw = normalize(message.getString());
         if (raw.isEmpty()) return;
 
@@ -123,7 +123,7 @@ public class AuctionHudClient implements ClientModInitializer {
         lastRaw = raw;
         lastRawTime = now;
 
-        class_310 mc = class_310.method_1551();
+        MinecraftClient mc = MinecraftClient.getInstance();
         boolean looksPay = LOOKS_PAY.matcher(raw).find();
         if (AuctionState.debug && (raw.contains("$") || looksPay)) {
             AuctionState.say(mc, "[AuctionHud debug] saw: " + raw);
@@ -155,7 +155,7 @@ public class AuctionHudClient implements ClientModInitializer {
             if (amt == null) return;
             amount = AuctionState.parseMoney(amt);
 
-            String self = mc.field_1724 != null ? mc.field_1724.method_5477().getString() : "";
+            String self = mc.player != null ? mc.player.getName().getString() : "";
             String firstUnknown = null;
             Matcher t = TOKEN.matcher(raw);
             while (t.find()) {
