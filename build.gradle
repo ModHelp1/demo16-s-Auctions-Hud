@@ -1,11 +1,14 @@
 plugins {
-    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'fabric-loom' version "${loom_version}"
+    id 'maven-publish'
 }
 
 version = project.mod_version
 group = project.maven_group
 
 base { archivesName = project.archives_base_name }
+
+repositories {}
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -16,7 +19,7 @@ dependencies {
 
 processResources {
     inputs.property "version", project.version
-    filesMatching("fabric.mod.json") { expand "version": project.version }
+    filesMatching("fabric.mod.json") { expand "version": inputs.properties.version }
 }
 
 tasks.withType(JavaCompile).configureEach { it.options.release = 21 }

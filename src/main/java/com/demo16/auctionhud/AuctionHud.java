@@ -3,103 +3,182 @@ package com.demo16.auctionhud;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.PlayerSkinDrawer;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
 
-public class AuctionHud {
-    // Yellow theme (ARGB)
-    private static final int BG        = 0xE6120F00;
-    private static final int BORDER    = 0xFFFFD21F;
-    private static final int TEXT      = 0xFFFFE066;
-    private static final int TEXT_DIM  = 0xFFB89B2A;
-    private static final int BAR_BG    = 0xFF3A3000;
-    private static final int BOX_BG    = 0xFF1E1900;
-    private static final int WHITE     = 0xFFFFF4C2;
-
+public final class AuctionHud {
+    private static final int BG = 0xE6120F00;
+    private static final int BORDER = 0xFFFFD21F;
+    private static final int TEXT = 0xFFFFE066;
+    private static final int TEXT_DIM = 0xFFB89B2A;
+    private static final int WHITE = 0xFFFFF4C2;
+    private static final int RED = 0xFFFF5555;
+    private static final int BAR_BG = 0xFF3A3000;
+    private static final int BOX_BG = 0xFF1E1900;
     private static final int W = 210;
     private static final int H = 108;
 
+    private AuctionHud() {}
+
     public static void render(DrawContext ctx, RenderTickCounter tickCounter) {
-        if (!AuctionState.visible) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.options.hudHidden) return;
-        TextRenderer tr = mc.textRenderer;
+        TextRenderer font = mc.textRenderer;
 
-        int x = AuctionState.hudX;
-        int y = AuctionState.hudY;
+        renderPanel(ctx, mc, font);
+        renderWinnerPopup(ctx, mc, font);
+    }
 
-        // Panel
+    // =====================================================================
+    //  MAIN PANEL
+    // =====================================================================
+    private static void renderPanel(DrawContext ctx, MinecraftClient mc, TextRenderer font) {
+        if (!AuctionState.visible) return;
+
+        int x = AuctionState.hudX, y = AuctionState.hudY;
+        long now = System.currentTimeMillis();
+
         ctx.fill(x, y, x + W, y + H, BG);
         border(ctx, x, y, W, H, BORDER);
 
-        // Header
         ctx.drawItem(AuctionState.stack(), x + 5, y + 5);
         String itemName = AuctionState.stack().getName().getString();
-        ctx.drawText(tr, "AUCTION \u00B7 " + AuctionState.quantity + " \u00D7 " + itemName, x + 26, y + 5, TEXT, true);
+        ctx.drawText(font, "AUCTION " + AuctionState.quantity + "x " + itemName, x + 26, y + 5, TEXT, true);
 
+        // ---------- status / TIMER LINE ----------
         String status;
-        if (AuctionState.finished) status = "SOLD to " + AuctionState.topBidder;
-        else if (!AuctionState.running) status = "stopped";
-        else if (AuctionState.topBidder == null) status = "waiting for bids...";
-        else status = "going once... " + Math.max(0, (AuctionState.endTime - System.currentTimeMillis()) / 1000 + 1) + "s";
-        ctx.drawText(tr, status, x + 26, y + 16, TEXT_DIM, false);
+        int statusColor = TEXT_DIM;
+        long msLeft = Math.max(0, AuctionState.endTime - now);
+        long secLeft = (msLeft + 999) / 1000;              // 5,4,3,2,1 – counts every second
+        if (AuctionState.finished) {
+            status = AuctionState.topBidder != null ? "SOLD to " + AuctionState.topBidder : "ended - no bids";
+        } else if (!AuctionState.running) {
+            status = "stopped";
+        } else {
+            status = "Ends in " + secLeft + "s";
+            if (secLeft <= 3) statusColor = RED;
+        }
+        ctx.drawText(font, status, x + 26, y + 16, statusColor, false);
 
-        // LIVE / ENDED badge
+        // ---------- LIVE / SOLD badge ----------
         String badge = AuctionState.running ? "LIVE" : (AuctionState.finished ? "SOLD" : "OFF");
-        int bw = tr.getWidth(badge) + 8;
+        if (AuctionState.finished && AuctionState.topBidder == null) badge = "END";
+        int bw = font.getWidth(badge) + 8;
         int bx = x + W - bw - 6;
         ctx.fill(bx, y + 5, bx + bw, y + 16, AuctionState.running ? 0xFF4A3D00 : 0xFF2A2500);
         border(ctx, bx, y + 5, bw, 11, BORDER);
-        ctx.drawText(tr, badge, bx + 4, y + 7, TEXT, false);
+        ctx.drawText(font, badge, bx + 4, y + 7, TEXT, false);
 
-        // Timer bar
-        int barX = x + 4, barW = W - 8, barY = y + 28;
+        // ---------- progress bar ----------
+        int barX = x + 4, barW = 202, barY = y + 28;
         ctx.fill(barX, barY, barX + barW, barY + 3, BAR_BG);
-        if (AuctionState.running && AuctionState.topBidder != null) {
+        if (AuctionState.running) {
             long total = AuctionState.timerSec * 1000L;
-            long left = Math.max(0, AuctionState.endTime - System.currentTimeMillis());
-            int fill = (int) (barW * (left / (double) Math.max(1, total)));
-            ctx.fill(barX, barY, barX + fill, barY + 3, BORDER);
-        } else if (AuctionState.finished) {
-            ctx.fill(barX, barY, barX + barW, barY + 3, BORDER);
+            int filled = (int) (barW * (msLeft / (double) Math.max(1, total)));
+            ctx.fill(barX, barY, barX + filled, barY + 3, BORDER);
         }
 
-        // Highest bid box
-        int bxx = x + 6, byy = y + 36, bww = W - 12, bhh = 32;
-        ctx.fill(bxx, byy, bxx + bww, byy + bhh, BOX_BG);
-        border(ctx, bxx, byy, bww, bhh, BORDER);
-        ctx.drawText(tr, "\u2605 HIGHEST BID", bxx + 5, byy + 4, TEXT, false);
+        // ---------- highest bid box ----------
+        int bxx = x + 6, byy = y + 36, boxW = 198, boxH = 32;
+        ctx.fill(bxx, byy, bxx + boxW, byy + boxH, BOX_BG);
+        border(ctx, bxx, byy, boxW, boxH, BORDER);
+        ctx.drawText(font, "\u2605 HIGHEST BID", bxx + 5, byy + 4, TEXT, false);
+
         if (AuctionState.topBidder == null) {
-            ctx.drawText(tr, "\u2014", bxx + 5, byy + 18, TEXT_DIM, false);
+            ctx.drawText(font, "\u2014", bxx + 5, byy + 18, TEXT_DIM, false);
             String nb = "no bids yet";
-            ctx.drawText(tr, nb, bxx + bww - tr.getWidth(nb) - 5, byy + 18, TEXT_DIM, false);
+            ctx.drawText(font, nb, bxx + boxW - font.getWidth(nb) - 5, byy + 18, TEXT_DIM, false);
         } else {
-            ctx.drawText(tr, AuctionState.topBidder, bxx + 5, byy + 18, WHITE, true);
-            String amt = AuctionState.formatMoney(AuctionState.topBid);
-            ctx.drawText(tr, amt, bxx + bww - tr.getWidth(amt) - 5, byy + 18, TEXT, true);
+            // little head of whoever is winning
+            int textX = bxx + 5;
+            if (AuctionState.topEntry != null) {
+                var skin = AuctionState.topEntry.getSkinTextures();
+                PlayerSkinDrawer.draw(ctx, skin, bxx + 5, byy + 15, 12);
+                textX = bxx + 20;
+            }
+            ctx.drawText(font, AuctionState.topBidder, textX, byy + 18, WHITE, true);
+            String money = AuctionState.formatMoney(AuctionState.topBid);
+            ctx.drawText(font, money, bxx + boxW - font.getWidth(money) - 5, byy + 18, TEXT, true);
         }
 
-        // Worth / min bid
-        row(ctx, tr, x + 8, x + W - 8, y + 74, "worth", AuctionState.formatMoney(AuctionState.parseMoney(AuctionState.worthText)));
-        row(ctx, tr, x + 8, x + W - 8, y + 86, "min bid", AuctionState.formatMoney(AuctionState.minBid));
+        row(ctx, font, x + 8, x + W - 8, y + 74, "worth", AuctionState.formatMoney(AuctionState.parseMoney(AuctionState.worthText)));
+        row(ctx, font, x + 8, x + W - 8, y + 86, "min bid", AuctionState.formatMoney(AuctionState.minBid));
 
-        // Footer
-        String footer = "demo16's Auction's Hud";
-        ctx.drawText(tr, footer, x + (W - tr.getWidth(footer)) / 2, y + H - 10, 0xFF8A7420, false);
+        String title = "demo16's Auction's Hud";
+        ctx.drawText(font, title, x + (W - font.getWidth(title)) / 2, y + H - 10, 0xFF8A7420, false);
 
-        // Session money box
         if (AuctionState.showSession) {
             String s = "SESSION " + AuctionState.formatMoney(AuctionState.sessionMoney);
-            int sw = tr.getWidth(s) + 12;
+            int sw = font.getWidth(s) + 12;
             int sx = x + W + 4;
             ctx.fill(sx, y, sx + sw, y + 16, BG);
             border(ctx, sx, y, sw, 16, BORDER);
-            ctx.drawText(tr, s, sx + 6, y + 4, TEXT, true);
+            ctx.drawText(font, s, sx + 6, y + 4, TEXT, true);
         }
     }
 
-    private static void row(DrawContext ctx, TextRenderer tr, int left, int right, int y, String label, String value) {
-        ctx.drawText(tr, "\u2022 " + label, left, y, TEXT_DIM, false);
-        ctx.drawText(tr, value, right - tr.getWidth(value), y, TEXT, true);
+    // =====================================================================
+    //  BIG WINNER POPUP  (3 seconds)   "[Username] Won the [Item]"
+    // =====================================================================
+    private static void renderWinnerPopup(DrawContext ctx, MinecraftClient mc, TextRenderer font) {
+        long now = System.currentTimeMillis();
+        if (now >= AuctionState.popupUntil || AuctionState.popupName == null) return;
+
+        int sw = ctx.getScaledWindowWidth();
+        int sh = ctx.getScaledWindowHeight();
+
+        String line = AuctionState.popupName + " Won the " + AuctionState.popupItem;
+        String sub = "for " + AuctionState.formatMoney(AuctionState.popupBid);
+
+        // text scale: as big as possible but always fits on screen
+        int headSize = 48;
+        int pad = 14;
+        float maxTextW = Math.min(sw - 40 - headSize - pad * 3, 420);
+        float scale = Math.min(2.0f, maxTextW / Math.max(1, font.getWidth(line)));
+        scale = Math.max(0.8f, scale);
+
+        int textW = (int) (font.getWidth(line) * scale);
+        int boxW = pad + headSize + pad + textW + pad;
+        int boxH = headSize + pad * 2;
+        int bx = (sw - boxW) / 2;
+        int by = sh / 3 - boxH / 2;
+
+        ctx.fill(bx, by, bx + boxW, by + boxH, 0xF0120F00);
+        border(ctx, bx, by, boxW, boxH, BORDER);
+        border(ctx, bx + 2, by + 2, boxW - 4, boxH - 4, 0xFF8A7420);
+
+        // --- head of the winner ---
+        int hx = bx + pad, hy = by + pad;
+        PlayerListEntry e = AuctionState.popupEntry;
+        if (e != null) {
+            var skin = e.getSkinTextures();
+            PlayerSkinDrawer.draw(ctx, skin, hx, hy, headSize);
+        } else {
+            // player isn't in the tab list (left / offline): show a letter box instead
+            ctx.fill(hx, hy, hx + headSize, hy + headSize, 0xFF3A3000);
+            border(ctx, hx, hy, headSize, headSize, BORDER);
+            String letter = AuctionState.popupName.substring(0, 1).toUpperCase();
+            ctx.drawText(font, letter, hx + headSize / 2 - font.getWidth(letter) / 2, hy + headSize / 2 - 4, WHITE, true);
+        }
+
+        // --- big text: "[Username] Won the [Item]" ---
+        int tx = hx + headSize + pad;
+        float lineH = 9 * scale;
+        float ty = by + (boxH - lineH - 12) / 2f;
+        var m = ctx.getMatrices();
+        m.pushMatrix();
+        m.translate(tx, ty);
+        m.scale(scale, scale);
+        ctx.drawText(font, line, 0, 0, WHITE, true);
+        m.popMatrix();
+
+        ctx.drawText(font, sub, tx, (int) (ty + lineH + 4), TEXT, true);
+    }
+
+    private static void row(DrawContext ctx, TextRenderer font, int left, int right, int y, String label, String value) {
+        ctx.drawText(font, label, left, y, TEXT_DIM, false);
+        ctx.drawText(font, value, right - font.getWidth(value), y, TEXT, true);
     }
 
     private static void border(DrawContext ctx, int x, int y, int w, int h, int color) {

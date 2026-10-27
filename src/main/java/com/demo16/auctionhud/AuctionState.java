@@ -1,22 +1,25 @@
 package com.demo16.auctionhud;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-/** All auction data lives in memory only. Nothing is saved to disk or sent anywhere. */
-public class AuctionState {
+public final class AuctionState {
+    // ---- settings ----
     public static String itemId = "minecraft:totem_of_undying";
     public static String worthText = "10k";
     public static long minBid = 200;
     public static int quantity = 1;
     public static int timerSec = 5;
-    public static int hudX = 10, hudY = 10;
+    public static int hudX = 10;
+    public static int hudY = 10;
     public static boolean showSession = true;
 
+    // ---- live state ----
     public static boolean visible = false;
     public static boolean running = false;
     public static boolean finished = false;
@@ -25,13 +28,31 @@ public class AuctionState {
     public static long sessionMoney = 0;
     public static long endTime = 0;
 
+    // ---- winner popup (3 seconds) ----
+    public static final long POPUP_MS = 3000;
+    public static long popupUntil = 0;
+    public static String popupName = null;
+    public static String popupItem = "";
+    public static long popupBid = 0;
+    public static PlayerListEntry popupEntry = null;
+
+    // ---- who is winning right now (for the skin) ----
+    public static PlayerListEntry topEntry = null;
+
+    public static boolean debug = false;
+
+    private AuctionState() {}
+
+    /** Timer starts counting RIGHT AWAY when the auction starts. */
     public static void start() {
         visible = true;
         running = true;
         finished = false;
         topBidder = null;
         topBid = 0;
-        endTime = 0;
+        topEntry = null;
+        popupUntil = 0;
+        endTime = System.currentTimeMillis() + timerSec * 1000L;
     }
 
     public static void stop() {
@@ -44,28 +65,56 @@ public class AuctionState {
         visible = false;
         topBidder = null;
         topBid = 0;
+        topEntry = null;
+        popupUntil = 0;
     }
 
     public static void placeBid(String name, long amount) {
-        if (!running) return;
-        if (amount < minBid) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (!running) {
+            if (debug) say(mc, "[AuctionHud] payment from " + name + " ignored: no auction running");
+            return;
+        }
+        if (amount < minBid) {
+            say(mc, "[AuctionHud] " + name + " paid " + formatMoney(amount) + " (below min bid " + formatMoney(minBid) + ")");
+            return;
+        }
         if (amount > topBid) {
             topBid = amount;
             topBidder = name;
+            topEntry = lookup(name);
+            // every new top bid resets the countdown
             endTime = System.currentTimeMillis() + timerSec * 1000L;
         }
     }
 
+    /** Call once per client tick. */
     public static void tick() {
-        if (running && topBidder != null && System.currentTimeMillis() >= endTime) {
+        if (running && System.currentTimeMillis() >= endTime) {
             running = false;
             finished = true;
-            sessionMoney += topBid;
             MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.player != null) {
-                mc.player.sendMessage(Text.literal("[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid)), false);
+            if (topBidder != null) {
+                sessionMoney += topBid;
+                popupName = topBidder;
+                popupBid = topBid;
+                popupItem = (quantity > 1 ? quantity + "x " : "") + stack().getName().getString();
+                PlayerListEntry fresh = lookup(topBidder);
+                popupEntry = fresh != null ? fresh : topEntry;
+                popupUntil = System.currentTimeMillis() + POPUP_MS;
+                say(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid));
             }
         }
+    }
+
+    public static PlayerListEntry lookup(String name) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.getNetworkHandler() == null || name == null) return null;
+        return mc.getNetworkHandler().getPlayerListEntry(name);
+    }
+
+    public static void say(MinecraftClient mc, String msg) {
+        if (mc != null && mc.player != null) mc.player.sendMessage(Text.literal(msg), false);
     }
 
     public static ItemStack stack() {
@@ -75,13 +124,12 @@ public class AuctionState {
         if (id != null && Registries.ITEM.containsId(id)) {
             return new ItemStack(Registries.ITEM.get(id));
         }
-        return new ItemStack(Items.BARRIER);
+        return new ItemStack(Items.TOTEM_OF_UNDYING);
     }
 
-    /** Accepts things like 200, $1,500, 10k, 2.5m, 1b. Returns 0 if it can't parse. */
-    public static long parseMoney(String in) {
-        if (in == null) return 0;
-        String s = in.trim().toLowerCase().replace("$", "").replace(",", "");
+    public static long parseMoney(String s) {
+        if (s == null) return 0;
+        s = s.trim().toLowerCase().replace("$", "").replace(",", "").replace(" ", "");
         if (s.isEmpty()) return 0;
         double mult = 1;
         char last = s.charAt(s.length() - 1);
