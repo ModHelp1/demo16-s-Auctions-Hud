@@ -87,11 +87,25 @@ public class AuctionHudClient implements ClientModInitializer {
             "you", "your", "paid", "pay", "sent", "send", "gave", "give", "has", "have", "from", "received",
             "got", "the", "and", "for", "money", "transfer", "transferred", "just", "with", "payment", "balance");
 
+    // DonutSMP (and some other servers) style text with small-caps / fancy unicode letters.
+    private static final String SMALL_CAPS = "\u1D00\u0299\u1D04\u1D05\u1D07\uA730\u0262\u029C\u026A\u1D0A\u1D0B\u029F\u1D0D\u0274\u1D0F\u1D18\u01EB\u0280\uA731\u1D1B\u1D1C\u1D20\u1D21x\u028F\u1D22";
+
+    private static String normalize(String in) {
+        String t = in.replaceAll("\u00A7.", "").replace('\u00A0', ' ');
+        t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC);
+        StringBuilder sb = new StringBuilder(t.length());
+        for (char c : t.toCharArray()) {
+            int i = SMALL_CAPS.indexOf(c);
+            sb.append(i >= 0 && c != 'x' ? (char) ('a' + i) : c);
+        }
+        return sb.toString().trim();
+    }
+
     private static String lastRaw = "";
     private static long lastRawTime = 0;
 
     private static void onMessage(Text message, boolean overlay) {
-        String raw = message.getString().replaceAll("\u00A7.", "").trim();
+        String raw = normalize(message.getString());
         if (raw.isEmpty()) return;
 
         // GAME + CHAT can both fire for one line: ignore repeats within 1s

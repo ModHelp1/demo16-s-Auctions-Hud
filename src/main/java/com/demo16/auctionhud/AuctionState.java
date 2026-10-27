@@ -1,6 +1,9 @@
 package com.demo16.auctionhud;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.sound.PositionedSoundInstance;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -14,10 +17,18 @@ public final class AuctionState {
     public static String worthText = "10k";
     public static long minBid = 200;
     public static int quantity = 1;
-    public static int timerSec = 5;
+    public static int timerSec = 60;
     public static int hudX = 10;
     public static int hudY = 10;
     public static boolean showSession = true;
+    public static int anchorH = 0;          // 0 left, 1 center, 2 right
+    public static int anchorV = 0;          // 0 top, 1 middle, 2 bottom
+    public static boolean antiSnipe = false; // bid in last N sec -> timer goes back up to N sec
+    public static int snipeSec = 5;
+    public static boolean sounds = true;
+    public static boolean announce = false;  // say bids / winner in public chat
+    public static long lastBidTime = 0;
+    public static long lastAnnounce = 0;
 
     // ---- live state ----
     public static boolean visible = false;
@@ -80,12 +91,32 @@ public final class AuctionState {
             return;
         }
         if (amount > topBid) {
+            long now = System.currentTimeMillis();
             topBid = amount;
             topBidder = name;
             topEntry = lookup(name);
-            // every new top bid resets the countdown
-            endTime = System.currentTimeMillis() + timerSec * 1000L;
+            lastBidTime = now;
+            // The countdown is NOT reset by new bids. Only the optional anti-snipe can add a few seconds.
+            if (antiSnipe && endTime - now < snipeSec * 1000L) {
+                endTime = now + snipeSec * 1000L;
+            }
+            sound(SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP, 1.2f);
+            if (announce && now - lastAnnounce > 2000) {
+                lastAnnounce = now;
+                chat(mc, "[Auction] " + name + " leads with " + formatMoney(amount) + "!");
+            }
         }
+    }
+
+    public static void sound(SoundEvent ev, float pitch) {
+        if (!sounds) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc != null) mc.getSoundManager().play(PositionedSoundInstance.master(ev, pitch));
+    }
+
+    /** Sends a real chat message to the server. */
+    public static void chat(MinecraftClient mc, String msg) {
+        if (mc != null && mc.getNetworkHandler() != null) mc.getNetworkHandler().sendChatMessage(msg);
     }
 
     /** Call once per client tick. */
@@ -94,6 +125,7 @@ public final class AuctionState {
             running = false;
             finished = true;
             MinecraftClient mc = MinecraftClient.getInstance();
+            if (topBidder == null && announce) chat(mc, "[Auction] Ended with no bids.");
             if (topBidder != null) {
                 sessionMoney += topBid;
                 popupName = topBidder;
@@ -103,8 +135,16 @@ public final class AuctionState {
                 popupEntry = fresh != null ? fresh : topEntry;
                 popupUntil = System.currentTimeMillis() + POPUP_MS;
                 say(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid));
+                sound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0f);
+                if (announce) chat(mc, "[Auction] SOLD to " + topBidder + " for " + formatMoney(topBid) + "!");
             }
         }
+    }
+
+    /** Skin of the current leader (looked up again if they weren't in the tab list yet). */
+    public static PlayerListEntry leaderEntry() {
+        if (topBidder != null && topEntry == null) topEntry = lookup(topBidder);
+        return topEntry;
     }
 
     public static PlayerListEntry lookup(String name) {
